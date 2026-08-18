@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8892899369:AAHnxAOSfQMmQzR75IuxslsYtDgm6vsRQxQ")
 
 # মেইন অ্যাডমিন আইডি (এখানে নিজের আইডি দাও)
 ADMINS = [8136997138]   # তোমার Telegram ID
