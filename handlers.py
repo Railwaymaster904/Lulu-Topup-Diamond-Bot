@@ -5,17 +5,17 @@ import io
 import database as db
 from keyboards import *
 from states import UserStates, AdminStates
-from config import ADMINS, CHANNEL_ID, CHANNEL_LINK
-import os
+from config import ADMINS, CHANNEL_ID
 
-# ==================== HELPER FUNCTIONS ====================
+
+# ==================== HELPER ====================
 
 async def get_lang(user_id):
     user = await db.get_user(user_id)
     return user["language"] if user and user["language"] else "bn"
 
+
 def t(key, lang="bn"):
-    """Simple translation helper"""
     texts = {
         "welcome": {
             "bn": "🎮 স্বাগতম! Free Fire Top-Up বটে\n\n💰 আপনার ব্যালেন্স: ৳{balance}\n🎖 লেভেল: {level}\n\nনিচ থেকে অপশন বেছে নিন:",
@@ -83,7 +83,7 @@ async def check_maintenance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def check_force_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
     force = await db.get_setting("force_join")
     if str(force).lower() != "true":
-        return True  # Force join বন্ধ থাকলে পাস
+        return True
 
     user_id = update.effective_user.id
     try:
@@ -114,7 +114,7 @@ async def admin_only(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return True
 
 
-# ==================== START & LANGUAGE & JOIN ====================
+# ==================== START ====================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -138,17 +138,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_maintenance(update, context):
         return
 
-    # Force Join Check
     if not await check_force_join(update, context):
         return
 
-    # Language select if first time
-    user_data = await db.get_user(user.id)
-    if not user_data["language"] or user_data["language"] == "bn":
-        # ডিফল্ট বাংলা, চাইলে চেঞ্জ করতে পারবে
-        pass
-
     lang = await get_lang(user.id)
+    user_data = await db.get_user(user.id)
     balance = user_data["balance"] if user_data else 0
     level = user_data["level"] if user_data else 0
 
@@ -159,8 +153,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def check_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     user_id = query.from_user.id
+
     try:
         member = await context.bot.get_chat_member(CHANNEL_ID, user_id)
         if member.status in ["member", "administrator", "creator"]:
@@ -185,7 +179,7 @@ async def change_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    lang = query.data.split("_")[1]  # bn or en
+    lang = query.data.split("_")[1]
     await db.set_language(query.from_user.id, lang)
 
     user_data = await db.get_user(query.from_user.id)
@@ -232,7 +226,7 @@ async def diamond_topup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for offer in offers:
         text += f"🔹 {offer['name']} — ৳{offer['price']}\n"
 
-    text += "\nনিচ থেকে অফার সিলেক্ট করুন:" if lang == "bn" else "\nSelect an offer below:"
+    text += "\nSelect an offer below:" if lang == "en" else "\nনিচ থেকে অফার সিলেক্ট করুন:"
     await query.edit_message_text(text, reply_markup=offers_keyboard(offers), parse_mode="HTML")
 
 
@@ -249,11 +243,7 @@ async def select_offer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     context.user_data["selected_offer"] = offer_id
-    text = t("enter_uid", lang).format(
-        name=offer["name"],
-        price=offer["price"],
-        delivery=offer["delivery_time"]
-    )
+    text = t("enter_uid", lang).format(name=offer["name"], price=offer["price"], delivery=offer["delivery_time"])
     await query.edit_message_text(text)
     return UserStates.WAITING_UID
 
@@ -278,10 +268,7 @@ async def receive_uid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["uid"] = uid
     text = t("order_confirm", lang).format(
-        name=offer["name"],
-        price=offer["price"],
-        uid=uid,
-        delivery=offer["delivery_time"]
+        name=offer["name"], price=offer["price"], uid=uid, delivery=offer["delivery_time"]
     )
     await update.message.reply_text(text, reply_markup=confirm_order_keyboard(offer_id))
     return ConversationHandler.END
@@ -299,22 +286,19 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = await db.get_user(user_id)
     if user["balance"] < offer["price"]:
-        await query.edit_message_text(t("low_balance", lang).format(need=offer["price"], balance=f"{user['balance']:.2f}"), reply_markup=back_to_main_keyboard())
+        await query.edit_message_text(
+            t("low_balance", lang).format(need=offer["price"], balance=f"{user['balance']:.2f}"),
+            reply_markup=back_to_main_keyboard()
+        )
         return
 
     await db.update_balance(user_id, -offer["price"])
     order_id = await db.create_order(user_id, offer_id, offer["name"], offer["diamonds"], offer["price"], uid)
     await db.increase_order_count(user_id)
 
-    text = t("order_created", lang).format(
-        order_id=order_id,
-        name=offer["name"],
-        uid=uid,
-        price=offer["price"]
-    )
+    text = t("order_created", lang).format(order_id=order_id, name=offer["name"], uid=uid, price=offer["price"])
     await query.edit_message_text(text, parse_mode="Markdown", reply_markup=back_to_main_keyboard())
 
-    # Admin Notification
     for admin_id in ADMINS:
         try:
             await context.bot.send_message(
@@ -338,8 +322,6 @@ async def cancel_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = await get_lang(query.from_user.id)
     await query.edit_message_text("❌ Order Cancelled." if lang == "en" else "❌ অর্ডার বাতিল করা হয়েছে।", reply_markup=back_to_main_keyboard())
 
-
-# ==================== WEEKLY / MONTHLY (Basic) ====================
 
 async def buy_weekly(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -426,11 +408,10 @@ async def receive_trx_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     await update.message.reply_text(
-        "✅ Deposit Request পাঠানো হয়েছে!\nঅ্যাডমিন Approve করলে Balance যোগ হবে।" if lang == "bn" else "✅ Deposit Request sent!\nBalance will be added after Admin approval.",
+        "✅ Deposit Request পাঠানো হয়েছে!\nঅ্যাডমিন Approve করলে Balance যোগ হবে।" if lang == "bn" else "✅ Deposit Request sent!",
         reply_markup=main_menu_keyboard(lang)
     )
 
-    # Admin Notification
     for admin_id in ADMINS:
         try:
             deposits = await db.get_pending_deposits()
@@ -454,13 +435,12 @@ async def receive_trx_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# ==================== MY ACCOUNT / ORDERS / REFERRAL / SUPPORT / HELP ====================
+# ==================== MY ACCOUNT / ORDERS / REFERRAL ====================
 
 async def my_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user = await db.get_user(query.from_user.id)
-    lang = await get_lang(query.from_user.id)
 
     text = (
         f"👤 <b>MY ACCOUNT</b>\n\n"
@@ -513,7 +493,7 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     support_user = await db.get_setting("support_username") or "@Support"
-    await query.edit_message_text(f"📞 Support: {support_user}\n\nযেকোনো সমস্যায় যোগাযোগ করুন।", reply_markup=back_to_main_keyboard())
+    await query.edit_message_text(f"📞 Support: {support_user}", reply_markup=back_to_main_keyboard())
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -524,13 +504,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "1️⃣ আগে Deposit করে Balance যোগ করুন\n"
         "2️⃣ Diamond Top-Up থেকে অফার সিলেক্ট করুন\n"
         "3️⃣ Free Fire UID দিন\n"
-        "4️⃣ Confirm করুন\n\n"
-        "কোনো সমস্যা হলে Support এ যোগাযোগ করুন।"
+        "4️⃣ Confirm করুন"
     )
     await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_to_main_keyboard())
 
 
-# ==================== ADMIN PART (Dashboard + Download Users) ====================
+# ==================== ADMIN DASHBOARD + DOWNLOAD ====================
 
 async def dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await admin_only(update, context):
@@ -545,8 +524,7 @@ async def dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📦 Total Orders: {stats['total_orders']}\n"
         f"⏳ Pending Orders: {stats['pending_orders']}\n"
         f"💵 Total Deposits: ৳{stats['total_deposits']:.2f}\n"
-        f"💎 Total Sales: ৳{stats['total_sales']:.2f}\n\n"
-        f"Choose an option:"
+        f"💎 Total Sales: ৳{stats['total_sales']:.2f}"
     )
     if update.callback_query:
         await update.callback_query.answer()
@@ -566,7 +544,7 @@ async def download_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("কোনো ইউজার নেই।", reply_markup=back_to_admin_keyboard())
         return
 
-    lines = ["Username | Chat ID | Balance | Level\n" + "-"*50]
+    lines = ["Username | Chat ID | Balance | Level\n" + "-" * 50]
     for u in users:
         username = u["username"] or "N/A"
         lines.append(f"{username} | {u['user_id']} | ৳{u['balance']:.2f} | Level {u['level']}")
@@ -578,8 +556,24 @@ async def download_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_document(
         chat_id=query.from_user.id,
         document=InputFile(file),
-        caption=f"📥 To
-        # ==================== ADMIN OFFERS ====================
+        caption=f"📥 Total Users: {len(users)}"
+    )
+    await query.edit_message_text("✅ Users data পাঠানো হয়েছে!", reply_markup=back_to_admin_keyboard())
+
+
+async def close_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("Dashboard বন্ধ করা হয়েছে।")
+
+
+# ==================== CANCEL ====================
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = await get_lang(update.effective_user.id)
+    await update.message.reply_text("❌ বাতিল করা হয়েছে।" if lang == "bn" else "❌ Cancelled.", reply_markup=main_menu_keyboard(lang))
+    return ConversationHandler.END
+    # ==================== ADMIN OFFERS ====================
 
 async def admin_offers_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -617,7 +611,7 @@ async def add_offer_diamonds(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def add_offer_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         context.user_data["offer_price"] = float(update.message.text.strip())
-        await update.message.reply_text("🔘 Button Name লিখুন (উদাহরণ: 💎 100 Diamonds):")
+        await update.message.reply_text("🔘 Button Name লিখুন:")
         return AdminStates.ADD_OFFER_BUTTON
     except:
         await update.message.reply_text("সঠিক দাম লিখুন:")
@@ -651,12 +645,10 @@ async def add_offer_delivery(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"⚡ Delivery: {delivery}\n\n"
         f"Save করতে চাও?"
     )
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ Save", callback_data="save_offer"),
-            InlineKeyboardButton("❌ Cancel", callback_data="cancel_add_offer")
-        ]
-    ]
+    keyboard = [[
+        InlineKeyboardButton("✅ Save", callback_data="save_offer"),
+        InlineKeyboardButton("❌ Cancel", callback_data="cancel_add_offer")
+    ]]
     await update.message.reply_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
     return ConversationHandler.END
 
@@ -812,7 +804,7 @@ async def remove_balance_amount(update: Update, context: ContextTypes.DEFAULT_TY
     return ConversationHandler.END
 
 
-# ==================== DEPOSIT APPROVE / REJECT WITH REASON ====================
+# ==================== DEPOSIT APPROVE / REJECT ====================
 
 async def pending_deposits(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -854,7 +846,7 @@ async def approve_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.update_balance(dep["user_id"], dep["amount"])
     await query.edit_message_text(f"✅ Deposit Approved! ৳{dep['amount']} যোগ করা হয়েছে।")
     try:
-        await context.bot.send_message(dep["user_id"], f"✅ আপনার Deposit Approve হয়েছে!\n💰 ৳{dep['amount']} Balance-এ যোগ করা হয়েছে।")
+        await context.bot.send_message(dep["user_id"], f"✅ আপনার Deposit Approve হয়েছে!\n💰 ৳{dep['amount']} যোগ করা হয়েছে।")
     except:
         pass
 
@@ -880,16 +872,13 @@ async def reject_deposit_reason(update: Update, context: ContextTypes.DEFAULT_TY
     await db.update_deposit_status(deposit_id, "Rejected", reason)
     await update.message.reply_text(f"❌ Deposit Rejected.\nReason: {reason}")
     try:
-        await context.bot.send_message(
-            dep["user_id"],
-            f"❌ আপনার Deposit Request Reject করা হয়েছে।\n\nকারণ: {reason}"
-        )
+        await context.bot.send_message(dep["user_id"], f"❌ আপনার Deposit Reject করা হয়েছে।\n\nকারণ: {reason}")
     except:
         pass
     return ConversationHandler.END
 
 
-# ==================== ORDERS ADMIN ====================
+# ==================== ORDERS ====================
 
 async def pending_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -958,12 +947,9 @@ async def cancel_order_admin(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if order and order["status"] in ["Pending", "Processing"]:
         await db.update_balance(order["user_id"], order["price"])
         await db.update_order_status(order_id, "Cancelled")
-        await query.edit_message_text(f"❌ Order <code>{order_id}</code> Cancel করা হয়েছে + টাকা ফেরত।", parse_mode="HTML")
+        await query.edit_message_text(f"❌ Order <code>{order_id}</code> Cancel + টাকা ফেরত।", parse_mode="HTML")
         try:
-            await context.bot.send_message(
-                order["user_id"],
-                f"❌ আপনার Order <code>{order_id}</code> Cancel করা হয়েছে।\n💰 ৳{order['price']} ফেরত দেওয়া হয়েছে।"
-            )
+            await context.bot.send_message(order["user_id"], f"❌ Order <code>{order_id}</code> Cancel করা হয়েছে।\n💰 ৳{order['price']} ফেরত দেওয়া হয়েছে।")
         except:
             pass
     else:
@@ -987,10 +973,7 @@ async def broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("✅ Send to All", callback_data="broadcast_all")],
         [InlineKeyboardButton("❌ Cancel", callback_data="cancel_broadcast")]
     ]
-    await update.message.reply_text(
-        f"Preview:\n\n{context.user_data['broadcast_text']}\n\nপাঠাবেন?",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await update.message.reply_text(f"Preview:\n\n{context.user_data['broadcast_text']}\n\nপাঠাবেন?", reply_markup=InlineKeyboardMarkup(keyboard))
     return ConversationHandler.END
 
 
@@ -1036,8 +1019,10 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ Completed: {stats['completed_orders']}\n"
         f"⏳ Pending: {stats['pending_orders']}"
     )
-    await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_to_admin_keyboardEND
-  # ==================== SEARCH USER + ALL USERS ====================
+    await query.edit_message_text(text, parse_mode="HTML", reply_markup=back_to_admin_keyboard())
+
+
+# ==================== EXTRA MENUS ====================
 
 async def admin_users_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1046,6 +1031,26 @@ async def admin_users_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await query.edit_message_text("👥 <b>Users Management</b>", parse_mode="HTML", reply_markup=admin_users_keyboard())
 
+
+async def admin_deposits_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if not await admin_only(update, context):
+        return
+    await query.edit_message_text("💵 <b>Deposits</b>", parse_mode="HTML", reply_markup=admin_deposits_keyboard())
+
+
+async def admin_orders_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if not await admin_only(update, context):
+        return
+    await query.edit_message_text("📦 <b>Orders</b>", parse_mode="HTML", reply_markup=admin_orders_keyboard())
+
+
+async def special_offers(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await diamond_topup(update, context)
+    # ==================== SEARCH USER + ALL USERS ====================
 
 async def search_user_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1329,42 +1334,4 @@ async def remove_admin_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         await update.message.reply_text("সঠিক User ID লিখুন:")
         return AdminStates.REMOVE_ADMIN_ID
-    return ConversationHandler.END
-
-
-# ==================== EXTRA MENUS ====================
-
-async def admin_deposits_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if not await admin_only(update, context):
-        return
-    await query.edit_message_text("💵 <b>Deposits</b>", parse_mode="HTML", reply_markup=admin_deposits_keyboard())
-
-
-async def admin_orders_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if not await admin_only(update, context):
-        return
-    await query.edit_message_text("📦 <b>Orders</b>", parse_mode="HTML", reply_markup=admin_orders_keyboard())
-
-
-async def special_offers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await diamond_topup(update, context): {len(users)}"
-    )
-    await query.edit_message_text("✅ Users data পাঠানো হয়েছে!", reply_markup=back_to_admin_keyboard())
-
-
-async def close_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.edit_message_text("Dashboard বন্ধ করা হয়েছে।")
-
-
-# ==================== CANCEL ====================
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang = await get_lang(update.effective_user.id)
-    await update.message.reply_text("❌ বাতিল করা হয়েছে।" if lang == "bn" else "❌ Cancelled.", reply_markup=main_menu_keyboard(lang))
     return ConversationHandler.END
