@@ -6,7 +6,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 
 # মেইন অ্যাডমিন আইডি (এখানে নিজের আইডি দাও)
-ADMINS = [123456789]   # তোমার Telegram ID
+ADMINS = [8136997138]   # তোমার Telegram ID
 
 DB_NAME = "freefire_bot.db"
 
