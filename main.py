@@ -9,7 +9,6 @@ import database as db
 from states import UserStates, AdminStates
 import handlers as h
 
-# লগিং সেটআপ
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
@@ -30,8 +29,12 @@ def main():
     deposit_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(h.deposit_method, pattern="^deposit_(bkash|nagad|rocket|binance)$")],
         states={
-            UserStates.WAITING_DEPOSIT_AMOUNT: [MessageHandler(filters.TEXT & \~filters.COMMAND, h.receive_deposit_amount)],
-            UserStates.WAITING_TRX_ID: [MessageHandler(filters.TEXT & \~filters.COMMAND, h.receive_trx_id)],
+            UserStates.WAITING_DEPOSIT_AMOUNT: [
+                MessageHandler(filters.TEXT & \~filters.COMMAND, h.receive_deposit_amount)
+            ],
+            UserStates.WAITING_TRX_ID: [
+                MessageHandler(filters.TEXT & \~filters.COMMAND, h.receive_trx_id)
+            ],
         },
         fallbacks=[CommandHandler("cancel", h.cancel)],
         allow_reentry=True
@@ -40,7 +43,9 @@ def main():
     order_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(h.select_offer, pattern="^select_offer_")],
         states={
-            UserStates.WAITING_UID: [MessageHandler(filters.TEXT & \~filters.COMMAND, h.receive_uid)],
+            UserStates.WAITING_UID: [
+                MessageHandler(filters.TEXT & \~filters.COMMAND, h.receive_uid)
+            ],
         },
         fallbacks=[CommandHandler("cancel", h.cancel)],
         allow_reentry=True
@@ -168,14 +173,12 @@ def main():
         allow_reentry=True
     )
 
-    # ==================== রেজিস্টার ====================
+    # ==================== REGISTER HANDLERS ====================
 
-    # Commands
     application.add_handler(CommandHandler("start", h.start))
     application.add_handler(CommandHandler("dashboard", h.dashboard))
     application.add_handler(CommandHandler("cancel", h.cancel))
 
-    # Conversations
     application.add_handler(deposit_conv)
     application.add_handler(order_conv)
     application.add_handler(add_offer_conv)
@@ -191,9 +194,7 @@ def main():
     application.add_handler(add_admin_conv)
     application.add_handler(remove_admin_conv)
 
-    # ==================== CALLBACKS ====================
-
-    # User
+    # User Callbacks
     application.add_handler(CallbackQueryHandler(h.back_to_main, pattern="^back_to_main$"))
     application.add_handler(CallbackQueryHandler(h.diamond_topup, pattern="^diamond_topup$"))
     application.add_handler(CallbackQueryHandler(h.special_offers, pattern="^special_offers$"))
@@ -211,7 +212,7 @@ def main():
     application.add_handler(CallbackQueryHandler(h.buy_weekly, pattern="^buy_weekly$"))
     application.add_handler(CallbackQueryHandler(h.buy_monthly, pattern="^buy_monthly$"))
 
-    # Admin Dashboard
+    # Admin Callbacks
     application.add_handler(CallbackQueryHandler(h.dashboard, pattern="^admin_dashboard$"))
     application.add_handler(CallbackQueryHandler(h.close_dashboard, pattern="^close_dashboard$"))
     application.add_handler(CallbackQueryHandler(h.admin_offers_menu, pattern="^admin_offers$"))
@@ -223,35 +224,28 @@ def main():
     application.add_handler(CallbackQueryHandler(h.admin_management, pattern="^admin_management$"))
     application.add_handler(CallbackQueryHandler(h.download_users, pattern="^download_users$"))
 
-    # Offers
     application.add_handler(CallbackQueryHandler(h.all_offers_admin, pattern="^all_offers$"))
     application.add_handler(CallbackQueryHandler(h.save_offer, pattern="^save_offer$"))
     application.add_handler(CallbackQueryHandler(h.cancel_add_offer, pattern="^cancel_add_offer$"))
 
-    # Deposits
     application.add_handler(CallbackQueryHandler(h.pending_deposits, pattern="^pending_deposits$"))
     application.add_handler(CallbackQueryHandler(h.approve_deposit, pattern="^approve_deposit_"))
 
-    # Orders
     application.add_handler(CallbackQueryHandler(h.pending_orders, pattern="^pending_orders$"))
     application.add_handler(CallbackQueryHandler(h.process_order, pattern="^process_order_"))
     application.add_handler(CallbackQueryHandler(h.complete_order, pattern="^complete_order_"))
     application.add_handler(CallbackQueryHandler(h.cancel_order_admin, pattern="^cancel_order_admin_"))
 
-    # Users
     application.add_handler(CallbackQueryHandler(h.all_users, pattern="^all_users$"))
     application.add_handler(CallbackQueryHandler(h.quick_ban, pattern="^quick_ban_"))
     application.add_handler(CallbackQueryHandler(h.quick_unban, pattern="^quick_unban_"))
 
-    # Broadcast
     application.add_handler(CallbackQueryHandler(h.broadcast_all, pattern="^broadcast_all$"))
     application.add_handler(CallbackQueryHandler(h.cancel_broadcast, pattern="^cancel_broadcast$"))
 
-    # Settings
     application.add_handler(CallbackQueryHandler(h.toggle_force_join, pattern="^toggle_force_join$"))
     application.add_handler(CallbackQueryHandler(h.toggle_maintenance, pattern="^toggle_maintenance$"))
 
-    # বট চালু
     logger.info("🚀 Bot is starting...")
     application.run_polling(allowed_updates=["message", "callback_query"])
 
