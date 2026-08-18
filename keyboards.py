@@ -43,11 +43,35 @@ def force_join_keyboard():
 
 
 def offers_keyboard(offers):
+    """
+    Diamond Top-Up এর জন্য স্পেশাল লেআউট
+    এক লাইনে ৩টা বাটন করে সাজানো হবে
+    """
     keyboard = []
-    for offer in offers:
-        btn_text = f"{offer['button_name']} — ৳{offer['price']}"
-        keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"select_offer_{offer['id']}")])
+    row = []
+
+    for i, offer in enumerate(offers, 1):
+        btn_text = f"{offer['button_name']}"
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"select_offer_{offer['id']}"))
+
+        # প্রতি ৩টা বাটন হলে নতুন লাইন
+        if i % 3 == 0:
+            keyboard.append(row)
+            row = []
+
+    # বাকি বাটন থাকলে শেষ লাইনে যোগ করো
+    if row:
+        keyboard.append(row)
+
+    # Weekly & Monthly বাটন
+    keyboard.append([
+        InlineKeyboardButton("📅 Weekly", callback_data="buy_weekly"),
+        InlineKeyboardButton("📆 Monthly", callback_data="buy_monthly")
+    ])
+
+    # Main Menu বাটন
     keyboard.append([InlineKeyboardButton("🔙 Main Menu", callback_data="back_to_main")])
+
     return InlineKeyboardMarkup(keyboard)
 
 
